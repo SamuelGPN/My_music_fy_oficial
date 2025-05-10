@@ -4,7 +4,7 @@ from data_processing import extract_json, lista_dados_musicas
 from requests_controller import get_requests
 import os
 
-def pesquisar_musica(name_music, caminho):
+def pesquisar_musica(name_music):
     url_pesquisa = f'{name_music}'.replace(' ', '+')
     url = f'https://www.youtube.com/results?search_query={url_pesquisa}'
     data = get_requests(url).text
@@ -31,8 +31,8 @@ def get_youtube_download_link(url):
             for f in info_dict['formats']:
                 # print(f)
                 # time.sleep(10000)
-                if f['ext'] == 'webm' and f[
-                    'acodec'] != 'none':  # and 'https://rr1' in f['url'] and f['audio_channels'] != 'none':
+                if f['ext'] == 'webm' and f['acodec'] != 'none':  # and 'https://rr1' in f['url'] and f['audio_channels'] != 'none':
+                    print('url: ', f['url'])
                     return f['url']
         return None
 
