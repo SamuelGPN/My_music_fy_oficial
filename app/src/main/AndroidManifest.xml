@@ -25,6 +25,9 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".MusicActivity"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" /> <!-- para deixar tema escuri -->
+
         <!-- AGORA SIM, DENTRO DA APPLICATION, PARA QUE POSSA APARECER AS NOTIFICACOES-->
         <receiver android:name=".NotificationReceiver"/>
     </application>

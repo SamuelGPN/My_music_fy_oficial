@@ -1,11 +1,8 @@
 package com.example.my_music_fy_oficial;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,14 +12,10 @@ import android.os.Bundle;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -35,7 +28,6 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -48,55 +40,12 @@ import android.Manifest;
 
 public class MainActivity extends AppCompatActivity {
 
-    private void mostrarNotificacao() {
-        boolean tocando = player != null && player.isPlaying();
-
-        int iconeAcao = tocando ? R.drawable.pause_icon : R.drawable.play_icon;
-        String textoAcao = tocando ? "Pausar" : "Continuar";
-
-        Intent pauseIntent = new Intent(this, NotificationReceiver.class);
-        pauseIntent.setAction("PAUSE_PLAY");
-
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                this, 0, pauseIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "canal_musica")
-                .setSmallIcon(R.drawable.musica_icon) // um ícone genérico pequeno (recomendo algo tipo uma nota musical)
-                .setContentTitle("Música")
-                .setContentText(tocando ? "Tocando..." : "Pausada")
-                .addAction(iconeAcao, textoAcao, pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOnlyAlertOnce(true); // <-- Garante que a notificação seja atualizada, não recriada
-
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            Log.e("Notificacao", "Permissão de notificação não concedida.");
-            return;
-        }
-        notificationManager.notify(1, builder.build()); // Mesmo ID = substituição da notificação
-    }
-
-   // Para lidar com as respostas
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == 1) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permissão concedida!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Permissão de notificação negada", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
     Handler handler = new Handler(Looper.getMainLooper());
     ExecutorService executor = Executors.newSingleThreadExecutor();
     Handler mainHandler = new Handler(Looper.getMainLooper());
     ListView listView;
-    public static MediaPlayer player;  // Agora ele continua existindo mesmo que a tela feche
+
+    String url_anterior = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,10 +80,10 @@ public class MainActivity extends AppCompatActivity {
         TextInputLayout textInputLayout = findViewById(R.id.input_layout);
         TextInputEditText editTextNomeMusica = findViewById(R.id.text_input);
         Button botaoSearch = findViewById(R.id.pesquisarbtn);
-        Button botaoPausar = findViewById(R.id.pausarbtn);
         ListView listView = findViewById(R.id.lista_resultados); // Corrigido: faltava declarar a variável
 
         botaoSearch.setOnClickListener(v -> {
+            botaoSearch.setEnabled(false);
             String nomeMusica = Objects.requireNonNull(editTextNomeMusica.getText()).toString().trim();
 
             if (nomeMusica.isEmpty()) {
@@ -185,47 +134,19 @@ public class MainActivity extends AppCompatActivity {
                         );
 
                         listView.setAdapter(adapter);
+                        botaoSearch.setEnabled(true);
+                        System.out.println("Python aqui");
                         listView.setOnItemClickListener((parent, view1, position, id) -> {
-                            executor.execute(() -> {
-                                // Código em background (sem travar UI)
-                                String url = musicas.get(position).get("url");
-                                PyObject module2 = py.getModule("main_processing");
-                                PyObject result2 = module2.callAttr("get_youtube_download_link", url);
-                                String resposta = result2.toString();
 
-                                // Agora volta para a thread principal para atualizar UI
-                                mainHandler.post(() -> {
-                                    Log.d("Python", resposta);
-                                    if (player != null) {
-                                        player.release();
-                                    }
-                                    player = new MediaPlayer(); //reinicia o media player criando um novo objeto
-                                    player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                                    botaoPausar.setEnabled(false);
+                            // 👉 TROCA DE TELA AQUI
+                            Intent intent = new Intent(MainActivity.this, MusicActivity.class);
+                            intent.putExtra("titulo", musicas.get(position).get("titulo"));
+                            String url = musicas.get(position).get("url");
+                            intent.putExtra("url", url);
+                            intent.putExtra("url_anterior", url_anterior);
+                            startActivity(intent);
 
-                                    try {
-                                        player.setDataSource(resposta);
-                                        player.setOnPreparedListener(mp -> {
-                                            mp.start();
-                                            botaoPausar.setEnabled(true);
-                                            mostrarNotificacao();
-                                        });
-                                        player.prepareAsync();
-                                    } catch (IOException e) {
-                                        Log.e("PythonError", "Erro ao chamar o Python", e);
-                                    }
-                                    botaoPausar.setOnClickListener(w -> {
-                                        if (player != null) {
-                                            if (player.isPlaying()) {
-                                                player.pause();
-                                            } else {
-                                                player.start();
-                                            }
-                                            mostrarNotificacao(); // <-- Atualiza a notificação com o novo estado
-                                        }
-                                    });
-                                });
-                            });
+                            url_anterior = url;
                         });
                     });
                 });

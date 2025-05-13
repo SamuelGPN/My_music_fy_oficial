@@ -11,11 +11,11 @@ public class NotificationReceiver extends BroadcastReceiver {
         String acao = intent.getAction();
 
         if ("PAUSE_PLAY".equals(acao)) {
-            if (MainActivity.player != null) {
-                if (MainActivity.player.isPlaying()) {
-                    MainActivity.player.pause();
+            if (MusicActivity.player != null) {
+                if (MusicActivity.player.isPlaying()) {
+                    MusicActivity.player.pause();
                 } else {
-                    MainActivity.player.start();
+                    MusicActivity.player.start();
                 }
             }
         }
