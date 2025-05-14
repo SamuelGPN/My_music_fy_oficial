@@ -49,6 +49,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        //Iniciando python (Chaquopy)
+        if (!Python.isStarted()) {
+            Python.start(new AndroidPlatform(this));
+        }
+        PythonModelHolder.initModels();//Faz o Get dos modulos python main.py e main_processing.py
 
         //para pedir a permissão de notificacao
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -58,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
                         new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
             }
         }
-
 
         NotificationChannel canal = new NotificationChannel(
                 "canal_musica", "Canal Música",
@@ -93,14 +97,10 @@ public class MainActivity extends AppCompatActivity {
 
                 executor.execute(() -> {
                     // Código em background (sem travar UI)
-                    if (!Python.isStarted()) {
-                        Python.start(new AndroidPlatform(this));
-                    }
 
+                    //chama o metodo main do python
                     File privateDir = new File(getFilesDir(), "musica.mp3");
-                    Python py = Python.getInstance();
-                    PyObject module = py.getModule("main");
-                    PyObject result = module.callAttr("main", nomeMusica);
+                    PyObject result = PythonModelHolder.callModeloFromModel1(nomeMusica);
 
                     // Agora volta para a thread principal para atualizar UI
                     mainHandler.post(() -> {

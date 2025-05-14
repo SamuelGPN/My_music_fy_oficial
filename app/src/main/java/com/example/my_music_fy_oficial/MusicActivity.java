@@ -104,10 +104,8 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
                 tituloMusic.setText("Carregando...");
 
                 File privateDir = new File(getFilesDir(), "musica.mp3");
-                Python py = Python.getInstance();
-                PyObject module2 = py.getModule("main_processing");
-                PyObject result2 = module2.callAttr("get_youtube_download_link", url);
-                String resposta = result2.toString();
+                PyObject result = PythonModelHolder.callModeloFromModel2(url);
+                String resposta = result.toString();
                 Log.d("Python", resposta);
 
                 player = new MediaPlayer(); //reinicia o media player criando um novo objeto
