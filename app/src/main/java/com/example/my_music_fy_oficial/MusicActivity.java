@@ -103,23 +103,55 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
                 }
                 tituloMusic.setText("Carregando...");
 
-                File privateDir = new File(getFilesDir(), "musica.mp3");
-                PyObject result = PythonModelHolder.callModeloFromModel2(url);
-                String resposta = result.toString();
-                Log.d("Python", resposta);
+
+                // Caminho para /data/data/seu.app.package/files/musics_temp/
+                File pasta = new File(getFilesDir(), "musics_temp");
+                System.out.println("Verificando se há pasta music_temp - Python");
+                if (!pasta.exists()) {
+                    System.out.println("Não há pasta music_temp - Python");
+                    pasta.mkdirs(); // Cria a pasta (e qualquer pai necessário)
+                    System.out.println("Criou pasta music_temp - Python");
+                }
+
+                //Para deletar todos os arquivos dessa pasta se houver
+                if (pasta.exists() && pasta.isDirectory()) {
+                    File[] arquivos = pasta.listFiles();
+
+                    if (arquivos != null) {
+                        for (File arquivo : arquivos) {
+                            arquivo.delete(); // Deleta cada arquivo
+                        }
+                    }
+                }
+
+                String tituloWebm = titulo + ".webm";
+                File caminho_arq_final = new File(pasta, tituloWebm);
+                String resposta = "";
+
+                while (resposta.isEmpty()) {
+                    PyObject result = PythonModelHolder.callModeloFromModel2(url, caminho_arq_final.getAbsolutePath(), pasta.getAbsolutePath());
+                    resposta = result.toString();
+                    Log.d("Python", "Resposta: " + resposta);
+
+                    if (resposta.isEmpty()) {
+                        try {
+                            Thread.sleep(1000); // espera 1s antes de tentar de novo pra não travar tudo
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
 
                 player = new MediaPlayer(); //reinicia o media player criando um novo objeto
-                player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-
                 try {
-                    player.setDataSource(resposta);
+                    player.setDataSource(caminho_arq_final.getAbsolutePath());
+                    player.prepareAsync();
                     player.setOnPreparedListener(mp -> {
                         mp.start();
                         tituloMusic.setText(titulo);
                         botaoPausar.setEnabled(true);
                         mostrarNotificacao();// <-- notificação
                     });
-                    player.prepareAsync();
                 } catch (IOException e) {
                     Log.e("PythonError", "Erro ao chamar o Python", e);
                 }

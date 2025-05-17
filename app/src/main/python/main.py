@@ -1,28 +1,19 @@
-#import threading
-
 from main_processing import get_youtube_download_link, pesquisar_musica, baixar_audio
 
 
-def main(nome_musica):
-    print('aaa\n')
+def pesquisar(nome_musica):
+    print('Aguarde..carregando')
 
     lista_musica = pesquisar_musica(f'{nome_musica}')
     print(lista_musica)
-
-    # Espera um pouco pra acumular uns dados (opcional)
-    import time
-    time.sleep(2)
-    print('Aguarde..carregando')
-
     print('pronto')
-    # Começa a tocar
-    #tocar_audio(arquivo)
-
-    # Espera o download acabar
-    #thread_download.join()
-
     return lista_musica
 
+def baixar_musica_temp(url_yout, caminho_arq_final, caminho_pasta):
+    print('caminho: ', caminho_arq_final)
+    url_audio = get_youtube_download_link(url_yout)
+    audio = baixar_audio(url_audio, caminho_arq_final, caminho_pasta)
 
-#if __name__ == '__main__':
-#    main()
+    return audio
+
+
