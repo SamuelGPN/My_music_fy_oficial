@@ -125,3 +125,15 @@ def baixar_audio(audio_url, nome_caminho_arquivo, caminho_pasta):
                 with open(f"{caminho_pasta}/parte_{i}.bin", "rb") as infile:
                     outfile.write(infile.read())
         return f"Música salva como {nome_caminho_arquivo}"
+
+
+def run_tirar_ruido_ffmpeg(input_path, output_path):
+    cmd = [
+        "ffmpeg",
+        "-y",  # sobrescreve sem perguntar
+        "-i", input_path,
+        "-af", "afftdn=nr=12:nf=-50",#nr=12: Redução de ruído de 12dB (pode testar com 20, 30 etc.). nf=-50: Piso de ruído (em dB). Padrão razoável, mas pode ajustar conforme o áudio.
+        output_path
+    ]
+    subprocess.run(cmd, check=True)
+    return f"Música salva como {output_path}"

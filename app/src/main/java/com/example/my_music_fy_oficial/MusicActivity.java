@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
@@ -21,14 +20,12 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
 import com.chaquo.python.PyObject;
-import com.chaquo.python.Python;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 
 
 public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivity
@@ -125,63 +122,68 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
                 }
 
                 String tituloWebm = titulo + ".webm";
-                File caminho_arq_final = new File(pasta, tituloWebm);
-                String resposta = "";
+                File arq_final = new File(pasta, tituloWebm);
+                String camimho_arq_final = arq_final.getAbsolutePath();
 
-                while (resposta.isEmpty()) {
-                    PyObject result = PythonModelHolder.callModeloFromModel2(url, caminho_arq_final.getAbsolutePath(), pasta.getAbsolutePath());
-                    resposta = result.toString();
-                    Log.d("Python", "Resposta: " + resposta);
+                String tituloWebm_formatado = titulo + "_format.webm";
+                String caminho_arq_final_sem_ruido = new File(pasta, tituloWebm_formatado).getAbsolutePath();
 
-                    if (resposta.isEmpty()) {
-                        try {
-                            Thread.sleep(1000); // espera 1s antes de tentar de novo pra não travar tudo
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                // Executa o Python em uma thread separada
+                new Thread(() -> {
+                    String resposta = "";
+                    while (resposta.isEmpty()) {
+                        PyObject result = PythonModelHolder.callModeloFromModel2(url, camimho_arq_final, pasta.getAbsolutePath(), caminho_arq_final_sem_ruido);
+                        resposta = result.toString();
+
+                        if (resposta.isEmpty()) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
                         }
                     }
-                }
 
-                player = new MediaPlayer(); //reinicia o media player criando um novo objeto
-                try {
-                    player.setDataSource(caminho_arq_final.getAbsolutePath());
-                    player.prepareAsync();
-                    player.setOnPreparedListener(mp -> {
-                        mp.start();
-                        tituloMusic.setText(titulo);
-                        botaoPausar.setEnabled(true);
-                        mostrarNotificacao();// <-- notificação
+                    // Quando a resposta estiver pronta, atualiza a UI com o player
+                    mainHandler.post(() -> {
+                        try {
+                            player = new MediaPlayer();
+                            player.setDataSource(caminho_arq_final_sem_ruido);
+                            player.prepareAsync();
+                            player.setOnPreparedListener(mp -> {
+                                mp.start();
+                                tituloMusic.setText(titulo);
+                                botaoPausar.setEnabled(true);
+                                mostrarNotificacao();
+                            });
+                        } catch (IOException e) {
+                            Log.e("PythonError", "Erro ao preparar o player", e);
+                        }
                     });
-                } catch (IOException e) {
-                    Log.e("PythonError", "Erro ao chamar o Python", e);
-                }
-            }
-            else {
-                botaoPausar.setEnabled(true);
-                if (!player.isPlaying()) {
-                    botaoPausar.setImageResource(R.drawable.play_icon); // muda para "play"
-                } else {
-                    botaoPausar.setImageResource(R.drawable.pause_icon); // muda para "play"
-                }
-                tituloMusic.setText(titulo);
+                }).start();
+            } else {
+                mainHandler.post(() -> {
+                    botaoPausar.setEnabled(true);
+                    botaoPausar.setImageResource(player.isPlaying() ? R.drawable.pause_icon : R.drawable.play_icon);
+                    tituloMusic.setText(titulo);
+                });
             }
 
-            botaoPausar.setOnClickListener(w -> {
-                if (player != null) {
-                    if (player.isPlaying()) {
-                        player.pause();
-                        botaoPausar.setImageResource(R.drawable.play_icon); // muda para "play"
-                    } else {
-                        player.start();
-                        botaoPausar.setImageResource(R.drawable.pause_icon); // muda para "play"
-                    }
-                    mostrarNotificacao(); // <-- Atualiza a notificação com o novo estado
-                }
-            });
+            // Sempre na UI thread
             mainHandler.post(() -> {
-                botaoHome.setOnClickListener(v -> {
-                    finish();
+                botaoPausar.setOnClickListener(w -> {
+                    if (player != null) {
+                        if (player.isPlaying()) {
+                            player.pause();
+                            botaoPausar.setImageResource(R.drawable.play_icon);
+                        } else {
+                            player.start();
+                            botaoPausar.setImageResource(R.drawable.pause_icon);
+                        }
+                        mostrarNotificacao();
+                    }
                 });
+                botaoHome.setOnClickListener(v -> finish());
             });
         });
     }

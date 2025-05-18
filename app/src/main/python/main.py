@@ -1,4 +1,4 @@
-from main_processing import get_youtube_download_link, pesquisar_musica, baixar_audio
+from main_processing import get_youtube_download_link, pesquisar_musica, baixar_audio, run_tirar_ruido_ffmpeg
 
 
 def pesquisar(nome_musica):
@@ -9,11 +9,15 @@ def pesquisar(nome_musica):
     print('pronto')
     return lista_musica
 
-def baixar_musica_temp(url_yout, caminho_arq_final, caminho_pasta):
+def baixar_musica_temp(url_yout, caminho_arq_final, caminho_pasta, caminhoa_arq_final_formatado):
     print('caminho: ', caminho_arq_final)
     url_audio = get_youtube_download_link(url_yout)
-    audio = baixar_audio(url_audio, caminho_arq_final, caminho_pasta)
+    baixar = baixar_audio(url_audio, caminho_arq_final, caminho_pasta)
 
-    return audio
+    if baixar is not None:
+        audio = run_tirar_ruido_ffmpeg(caminho_arq_final, caminhoa_arq_final_formatado)
+        return audio
+    else:
+        return ""
 
 
