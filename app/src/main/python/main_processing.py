@@ -126,7 +126,7 @@ def baixar_audio(audio_url, nome_caminho_arquivo, caminho_pasta):
                     outfile.write(infile.read())
         return f"Música salva como {nome_caminho_arquivo}"
 
-
+"""
 def run_tirar_ruido_ffmpeg(input_path, output_path):
     cmd = [
         "ffmpeg",
@@ -136,4 +136,4 @@ def run_tirar_ruido_ffmpeg(input_path, output_path):
         output_path
     ]
     subprocess.run(cmd, check=True)
-    return f"Música salva como {output_path}"
+    return f"Música salva como {output_path}" """

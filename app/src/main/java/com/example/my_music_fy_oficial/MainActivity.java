@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import android.Manifest;
 
@@ -136,18 +137,21 @@ public class MainActivity extends AppCompatActivity {
                         listView.setAdapter(adapter);
                         botaoSearch.setEnabled(true);
                         System.out.println("Python aqui");
-                        listView.setOnItemClickListener((parent, view1, position, id) -> {
 
+                        AtomicReference<String> url = new AtomicReference<>("");
+                        listView.setOnItemClickListener((parent, view1, position, id) -> {
                             // 👉 TROCA DE TELA AQUI
                             Intent intent = new Intent(MainActivity.this, MusicActivity.class);
                             intent.putExtra("titulo", musicas.get(position).get("titulo"));
-                            String url = musicas.get(position).get("url");
-                            intent.putExtra("url", url);
+                            url.set(musicas.get(position).get("url"));
+                            intent.putExtra("url", url.get());
                             intent.putExtra("url_anterior", url_anterior);
                             startActivity(intent);
-
-                            url_anterior = url;
+                            System.out.println("Atualizando a url anterior - Python " + url);
+                            url_anterior = url.get();
+                            System.out.println("Url anterior atualizada - Python " + url_anterior);
                         });
+
                     });
                 });
             }

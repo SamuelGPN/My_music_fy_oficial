@@ -74,12 +74,25 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
             }
         }
     }
+
+    private volatile boolean shouldStopWaiting = false;
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        shouldStopWaiting = true;
+        executor.shutdownNow();  // interrompe a thread, acordando-a se estiver dormindo e forca o fechamento de todas as tarefas pendentes
+
+    }
+
     public static MediaPlayer player;  // Agora ele continua existindo mesmo que a tela feche
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music); // nome do seu layout
+
+
 
         // Recupera os dados do Intent
         Intent intent = getIntent();
@@ -91,100 +104,105 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
         ImageButton botaoHome = findViewById(R.id.homebtn);
         ImageButton botaoPausar = findViewById(R.id.pausarbtn);
 
+        botaoPausar.setEnabled(false);
+        if (!Objects.equals(url, url_ant)) {
+            System.out.println("Entrou no if - Python");
+            if (player != null) {
+                player.release();
+            }
+            tituloMusic.setText("Carregando...");
 
-        executor.execute(() -> {
-            botaoPausar.setEnabled(false);
-            if (!Objects.equals(url, url_ant)) {
-                if (player != null) {
-                    player.release();
-                }
-                tituloMusic.setText("Carregando...");
-
-
-                // Caminho para /data/data/seu.app.package/files/musics_temp/
-                File pasta = new File(getFilesDir(), "musics_temp");
-                System.out.println("Verificando se há pasta music_temp - Python");
-                if (!pasta.exists()) {
-                    System.out.println("Não há pasta music_temp - Python");
-                    pasta.mkdirs(); // Cria a pasta (e qualquer pai necessário)
-                    System.out.println("Criou pasta music_temp - Python");
-                }
-
-                //Para deletar todos os arquivos dessa pasta se houver
-                if (pasta.exists() && pasta.isDirectory()) {
-                    File[] arquivos = pasta.listFiles();
-
-                    if (arquivos != null) {
-                        for (File arquivo : arquivos) {
-                            arquivo.delete(); // Deleta cada arquivo
-                        }
-                    }
-                }
-
-                String tituloWebm = titulo + ".webm";
-                File arq_final = new File(pasta, tituloWebm);
-                String camimho_arq_final = arq_final.getAbsolutePath();
-
-                String tituloWebm_formatado = titulo + "_format.webm";
-                String caminho_arq_final_sem_ruido = new File(pasta, tituloWebm_formatado).getAbsolutePath();
-
-                // Executa o Python em uma thread separada
-                new Thread(() -> {
-                    String resposta = "";
-                    while (resposta.isEmpty()) {
-                        PyObject result = PythonModelHolder.callModeloFromModel2(url, camimho_arq_final, pasta.getAbsolutePath(), caminho_arq_final_sem_ruido);
-                        resposta = result.toString();
-
-                        if (resposta.isEmpty()) {
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-
-                    // Quando a resposta estiver pronta, atualiza a UI com o player
-                    mainHandler.post(() -> {
-                        try {
-                            player = new MediaPlayer();
-                            player.setDataSource(caminho_arq_final_sem_ruido);
-                            player.prepareAsync();
-                            player.setOnPreparedListener(mp -> {
-                                mp.start();
-                                tituloMusic.setText(titulo);
-                                botaoPausar.setEnabled(true);
-                                mostrarNotificacao();
-                            });
-                        } catch (IOException e) {
-                            Log.e("PythonError", "Erro ao preparar o player", e);
-                        }
-                    });
-                }).start();
-            } else {
-                mainHandler.post(() -> {
-                    botaoPausar.setEnabled(true);
-                    botaoPausar.setImageResource(player.isPlaying() ? R.drawable.pause_icon : R.drawable.play_icon);
-                    tituloMusic.setText(titulo);
-                });
+            // Caminho para /data/data/seu.app.package/files/musics_temp/
+            File pasta = new File(getFilesDir(), "musics_temp");
+            System.out.println("Verificando se há pasta music_temp - Python");
+            if (!pasta.exists()) {
+                System.out.println("Não há pasta music_temp - Python");
+                pasta.mkdirs(); // Cria a pasta (e qualquer pai necessário)
+                System.out.println("Criou pasta music_temp - Python");
             }
 
-            // Sempre na UI thread
-            mainHandler.post(() -> {
-                botaoPausar.setOnClickListener(w -> {
-                    if (player != null) {
-                        if (player.isPlaying()) {
-                            player.pause();
-                            botaoPausar.setImageResource(R.drawable.play_icon);
-                        } else {
-                            player.start();
-                            botaoPausar.setImageResource(R.drawable.pause_icon);
+            //Para deletar todos os arquivos dessa pasta se houver
+            if (pasta.exists() && pasta.isDirectory()) {
+                File[] arquivos = pasta.listFiles();
+                if (arquivos != null) {
+                    for (File arquivo : arquivos) {
+                        arquivo.delete(); // Deleta cada arquivo
+                    }
+                }
+            }
+
+            String tituloWebm = titulo + ".wav";
+            File arq_final = new File(pasta, tituloWebm);
+            String caminho_arq_final = arq_final.getAbsolutePath();
+
+            String tituloWebm_formatado = titulo + "_format.webm";
+            String caminho_arq_final_sem_ruido = new File(pasta, tituloWebm_formatado).getAbsolutePath();
+            System.out.println("Entrando no laço - Python");
+
+            //shouldStopWaiting = false;
+            // Executa o Python em uma thread separada
+
+
+            executor.execute(() -> {
+                System.out.println("Entrou na thread - Python");
+                String resposta = "";
+                while (resposta.isEmpty() && !shouldStopWaiting) { //!shouldStopWaiting para que se eu sair desse activity ele não continuar com esse loop
+                    System.out.println("Entrou no laço - Python");
+                    PyObject result = PythonModelHolder.callModeloFromModel2(url, caminho_arq_final, pasta.getAbsolutePath());
+                    resposta = result.toString();
+                    if (resposta.isEmpty()) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
                         }
-                        mostrarNotificacao();
+                    }
+                }
+                //String ffmpegCommand = "-i " + caminho_arq_final + " " + caminho_arq_final_sem_ruido + ".wav";
+
+                //FFmpegKit.executeAsync(ffmpegCommand, session -> {
+                //    ReturnCode returnCode = session.getReturnCode();
+
+                //    if (returnCode.isSuccess()) {
+                //        System.out.println("Conversão realizada com sucesso!");
+                //    } else {
+                //        System.err.println("Erro na conversão: " + returnCode);
+                //    }
+                // });
+                // Quando a resposta estiver pronta, atualiza a UI com o player
+                mainHandler.post(() -> {
+                    try {
+                        player = new MediaPlayer();
+                        player.setDataSource(caminho_arq_final);
+                        player.prepareAsync();
+                        player.setOnPreparedListener(mp -> {
+                            mp.start();
+                            tituloMusic.setText(titulo);
+                            botaoPausar.setEnabled(true);
+                            mostrarNotificacao();
+                        });
+                    } catch (IOException e) {
+                        Log.e("PythonError", "Erro ao preparar o player", e);
                     }
                 });
-                botaoHome.setOnClickListener(v -> finish());
             });
+        } else {
+            botaoPausar.setEnabled(true);
+            botaoPausar.setImageResource(player.isPlaying() ? R.drawable.pause_icon : R.drawable.play_icon);
+            tituloMusic.setText(titulo);
+        }
+        botaoPausar.setOnClickListener(w -> {
+            if (player != null) {
+                if (player.isPlaying()) {
+                    player.pause();
+                    botaoPausar.setImageResource(R.drawable.play_icon);
+                } else {
+                    player.start();
+                    botaoPausar.setImageResource(R.drawable.pause_icon);
+                }
+                mostrarNotificacao();
+            }
         });
+        botaoHome.setOnClickListener(v -> finish());
     }
 }

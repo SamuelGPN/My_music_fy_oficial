@@ -20,10 +20,11 @@ android {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
         python {
+            version = "3.9"  // ✔️ Aqui você escolhe 3.
             pip {
                 install "requests"
                 install "ffmpeg-python"
-                install "yt-dlp"
+                //install "yt-dlp" Não e mais necessario pois estou usando manual
             }
         }
     }
@@ -40,8 +41,9 @@ android {
     }
 }
 
-dependencies {
 
+dependencies {
+    implementation(name: 'ffmpeg-kit-release', ext: 'aar')
     implementation libs.appcompat
     implementation libs.material
     implementation libs.activity
@@ -51,4 +53,5 @@ dependencies {
     androidTestImplementation libs.espresso.core
     implementation libs.ffmpeg
     //implementation libs.ffmpegkit
+
 }
