@@ -13,19 +13,77 @@
         android:src="@drawable/music_backgrounds"
         />
 
+
     <TextView
         android:id="@+id/tituloMusica"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Título da Música"
+        android:text="TÍtulo da Música"
         android:textSize="24sp"
+        app:layout_constraintTop_toBottomOf="@id/imageViewMusica"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="60dp" />
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/player_view"
+    <SeekBar
+        android:id="@+id/seekBar"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:layout_marginTop="20dp"/>
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/tituloMusica"
+        android:layout_marginTop="60dp"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/homebtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/botao_circular"
+            android:contentDescription="Home"
+            android:src="@drawable/home_icon" />
+
+        <ImageButton
+            android:id="@+id/previousbtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="55dp"
+            android:background="@drawable/botao_circular"
+            android:contentDescription="Previous"
+            android:src="@drawable/skip_previous_icon" />
+
+
+        <ImageButton
+            android:id="@+id/pausarbtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="23dp"
+            android:background="@drawable/botao_circular"
+            android:contentDescription="Pausar"
+            android:src="@drawable/pause_icon" />
+
+        <ImageButton
+            android:id="@+id/nextbtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="23dp"
+            android:background="@drawable/botao_circular"
+            android:contentDescription="Next"
+            android:src="@drawable/skip_next_icon" />
+
+        <ImageButton
+            android:id="@+id/favoritobtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="55dp"
+            android:background="@drawable/botao_circular"
+            android:contentDescription="Favorito"
+            android:src="@drawable/favorite_icon" />
+
+    </LinearLayout>
 
 </LinearLayout>
 

@@ -26,8 +26,6 @@ public class MusicActivity extends AppCompatActivity { // HERDA AppCompatActivit
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music); // nome do seu layout
 
-        playerView = findViewById(R.id.player_view);  // <-- Inicializa playerView aqui
-
         // Recupera os dados do Intent
         Intent intent = getIntent();
         String titulo = intent.getStringExtra("titulo");
