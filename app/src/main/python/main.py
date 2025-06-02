@@ -11,9 +11,12 @@ def pesquisar(nome_musica):
 
 def baixar_musica_temp(url_yout, caminho_arq_final, caminho_pasta):
     print('caminho: ', caminho_arq_final)
-    url_audio = get_youtube_download_link(url_yout)
-    baixar = baixar_audio(url_audio, caminho_arq_final, caminho_pasta)
-
-    return baixar
+    while True:
+        url_audio = get_youtube_download_link(url_yout)
+        baixar = baixar_audio(url_audio, caminho_arq_final, caminho_pasta)
+        if not baixar:
+            print('O arquivo retornou 0 Kb, tentando novamente... ')
+        else:
+            return baixar
 
 

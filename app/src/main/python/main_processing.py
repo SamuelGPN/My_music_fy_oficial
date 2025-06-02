@@ -43,6 +43,8 @@ def baixar_audio(audio_url, nome_caminho_arquivo, caminho_pasta):
     response = requests.head(audio_url)
     tamanho_audio_bytes = int(response.headers.get("Content-Length"))
     print(tamanho_audio_bytes, 'Kb') #Informa quantos kb tem.
+    if not tamanho_audio_bytes:
+        return
 
     start = 0
     end = tamanho_audio_bytes
