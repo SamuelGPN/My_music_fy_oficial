@@ -4,7 +4,6 @@ from data_processing import extract_json, lista_dados_musicas
 from requests_controller import get_requests
 import requests
 import os
-import time
 
 def pesquisar_musica(name_music):
     url_pesquisa = f'{name_music}'.replace(' ', '+')
@@ -16,29 +15,48 @@ def pesquisar_musica(name_music):
     lista_nome_links = lista_dados_musicas(json_data)
     return lista_nome_links
 
-def get_youtube_download_link(url):
+def get_youtube_download_link(url, caminho):
     ydl_opts = {
-        'format': 'bestaudio/best',  # pega o melhor formato de áudio disponível
-        'extractaudio': True,  # extrai apenas o áudio
-        'quiet': True,  # não exibe logs detalhados
-        'noplaylist': True,  # não pega playlists, só o vídeo
-        'outtmpl': 'downloads/%(id)s.%(ext)s'  # salva o arquivo com o nome do id do vídeo
+        'format': 'bestaudio/best',  # Pega o melhor áudio disponível (provavelmente Opus ou AAC)
+        'outtmpl': f'{caminho}/%(title)s.%(ext)s',
+        'noplaylist': True,
+        'quiet': False,
+        'no_warnings': False,
+
+        'writethumbnail': True,  # Baixa a thumbnail
+        'embedthumbnail': True,  # **Tenta** incorporar a thumbnail (compatibilidade pode variar em .webm)
+        # --- REMOVIDO: FFmpegExtractAudio (sem conversão para MP3) ---
+        #'postprocessors': [
+
+        #    {
+        #        'key': 'FFmpegMetadata',  # Ainda útil para outros metadados de texto
+        #        'add_metadata': True,
+        #    },
+            # Se você ainda quiser converter para MP3, adicione FFmpegExtractAudio AQUI:
+        #    {
+        #        'key': 'FFmpegExtractAudio',
+        #        'preferredcodec': 'mp3',
+        #        'preferredquality': '320K',
+        #    },
+        #],
+
+        # Se precisar de post_process_args (volume, mono), adicione aqui:
+        'post_process_args': [
+            # '-filter:a', 'loudnorm=i=-16:tp=-1.5'
+        ],
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url, download=False)
-        # print(info_dict)
-        # Pega a URL do áudio
-        if 'formats' in info_dict:
-            for f in info_dict['formats']:
-                # print(f)
-                # time.sleep(10000)
-                if f['ext'] == 'webm' and f['acodec'] != 'none':  # and 'https://rr1' in f['url'] and f['audio_channels'] != 'none':
-                    print('url: ', f['url'])
-                    return f['url']
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            final_filename = ydl.prepare_filename(info_dict)
+            print(f"Música baixada no formato original: {final_filename}")
+            return final_filename, final_filename.replace('.webm', '.webp')
+    except Exception as e:
+        print(f"Erro ao baixar a música no formato original: {e}")
         return None
 
-
+"""
 def baixar_audio(audio_url, nome_caminho_arquivo, caminho_pasta):
     response = requests.head(audio_url)
     tamanho_audio_bytes = int(response.headers.get("Content-Length"))
@@ -128,7 +146,7 @@ def baixar_audio(audio_url, nome_caminho_arquivo, caminho_pasta):
                     outfile.write(infile.read())
         return f"Música salva como {nome_caminho_arquivo}"
 
-"""
+
 def run_tirar_ruido_ffmpeg(input_path, output_path):
     cmd = [
         "ffmpeg",

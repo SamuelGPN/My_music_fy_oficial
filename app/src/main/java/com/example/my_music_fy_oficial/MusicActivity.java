@@ -1,12 +1,17 @@
 package com.example.my_music_fy_oficial;
 
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -15,10 +20,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.net.Uri; // Importe Uri
 import android.widget.Toast;
 
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
 import androidx.media3.common.Player;
 
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 
@@ -27,8 +34,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.File;
-import java.util.List;
-
 
 
 public class MusicActivity extends AppCompatActivity {
@@ -36,8 +41,12 @@ public class MusicActivity extends AppCompatActivity {
 
     private ImageButton playPauseBtn;
     private SeekBar seekBar;
+    private ImageView background;
+
     private Handler handler = new Handler();
     private boolean isUserSeeking = false;
+
+    private MyDownloadCompleteReceiver downloadReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +56,7 @@ public class MusicActivity extends AppCompatActivity {
         // Referências dos componentes da interface
         playPauseBtn = findViewById(R.id.pausarbtn);
         seekBar = findViewById(R.id.seekBar);
+        background = findViewById(R.id.imageViewMusica);
 
         // Clique Play/Pause
         playPauseBtn.setOnClickListener(v -> {
@@ -78,6 +88,13 @@ public class MusicActivity extends AppCompatActivity {
                 isUserSeeking = false;
             }
         });
+
+        // Registra o BroadcastReceiver
+        downloadReceiver = new MyDownloadCompleteReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                downloadReceiver, new IntentFilter("ACTION_DOWNLOAD_COMPLETE"));
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                downloadReceiver, new IntentFilter("ACTION_DOWNLOAD_ERROR"));
     }
 
     @Override
@@ -105,149 +122,55 @@ public class MusicActivity extends AppCompatActivity {
             try {
                 mediaController = controllerFuture.get();
 
-                // >>> INÍCIO: Executar a lógica do ChaquoPy em uma Thread de background <<<
-                // Crie um ExecutorService (pode ser um pool de threads único para tarefas sequenciais)
-                ExecutorService executor = Executors.newSingleThreadExecutor();
+                // *** LÓGICA DE INÍCIO DO DOWNLOAD NO SERVIÇO ***
+                // A MusicActivity agora DELEGA o download para o PlaybackService
+                if (!Objects.equals(url, url_ant)) {
+                    // Chame o método do serviço para iniciar o download
+                    // Você precisará de uma forma de chamar o método público do serviço.
+                    // Uma forma simples é criar um Intent e enviar comandos,
+                    // ou usar um Binder se você já estiver vinculando o serviço.
+                    // Para MediaSessionService, você pode adicionar um SessionCommand
+                    // personalizado para isso, ou usar um Intent direto.
+                    // Exemplo SIMPLES com Intent:
+                    Intent serviceIntent = new Intent(this, PlaybackService.class);
+                    serviceIntent.setAction("ACTION_START_DOWNLOAD_AND_PLAY");
+                    serviceIntent.putExtra("VIDEO_URL", url);
+                    startService(serviceIntent); // Inicia/envia intent para o serviço
 
-                executor.execute(() -> { // Isso será executado na thread de background
-                    String caminhoMusicaLocal = null; // Para armazenar o resultado do Python
-                    try {
-                        // (Opcional) Mostrar um indicador de carregamento na UI
-                        runOnUiThread(() -> {
-                            // Suponha que você tenha um ProgressBar com ID R.id.progressBarLoading
-                            // ProgressBar loadingSpinner = findViewById(R.id.progressBarLoading);
-                            // if (loadingSpinner != null) loadingSpinner.setVisibility(View.VISIBLE);
-                            // E talvez desabilitar botões para evitar cliques enquanto carrega
-                            // playPauseBtn.setEnabled(false);
-                            // seekBar.setEnabled(false);
-                        });
+                    // Mostrar loading na UI da Activity
+                    runOnUiThread(() -> { /* mostrar loading */ });
 
-                        // --- Lógica de criação de pasta e limpeza ---
-                        File pasta = new File(getFilesDir(), "musics_temp");
-                        System.out.println("Verificando se há pasta music_temp - Python");
-                        if (!pasta.exists()) {
-                            System.out.println("Não há pasta music_temp - Python");
-                            pasta.mkdirs();
-                            System.out.println("Criou pasta music_temp - Python");
-                        }
+                } else {
+                    // Se a música já está sendo tocada pelo serviço, apenas atualize a UI
+                    // Você pode precisar de uma forma de pedir ao serviço o caminho da imagem
+                    // se ele já foi carregado e não há necessidade de re-baixar.
+                    atualizarBotaoPlayPause();
+                    // Aqui você também pode pedir ao serviço a thumbnail da música atual para carregar na UI
+                    // Ex: mediaController.sendCustomCommand(new SessionCommand("GET_THUMBNAIL"), null);
+                }
 
-                        if (pasta.exists() && pasta.isDirectory()) {
-                            File[] arquivos = pasta.listFiles();
-                            if (arquivos != null) {
-                                for (File arquivo : arquivos) {
-                                    arquivo.delete();
-                                }
-                            }
-                        }
-
-                        String tituloWebm = titulo + ".wav";
-                        File arq_final = new File(pasta, tituloWebm);
-                        String caminho_arq_final = arq_final.getAbsolutePath();
-
-                        System.out.println("Entrando no laço - Python");
-
-                        String respostaPython = "";
-                        // A condição de parada do loop 'shouldStopWaiting' é crucial aqui,
-                        // mas para um loop de "esperar o resultado", o ideal é que a função Python
-                        // já retorne o resultado final, ou que essa loop seja interna ao Python.
-                        // Se for absolutamente necessário um loop de polling, você precisa de um flag:
-                        // private volatile boolean shouldStopWaiting = false; (declarado na classe)
-                        // E setar 'shouldStopWaiting = true;' em onStop()
-
-                        // Loop de espera pelo resultado do Python. Idealmente, o Python deveria ser
-                        // bloqueante ou fornecer um callback. Se a chamada Python já é bloqueante
-                        // (espera o download/processamento), o while é redundante aqui.
-                        // Se callModeloFromModel2 iniciar algo assíncrono no Python e retornar
-                        // um status, então um loop de polling faz sentido, mas com cuidado.
-                        // Para este cenário, vamos assumir que callModeloFromModel2 faz o trabalho completo.
-                        PyObject result = PythonModelHolder.callModeloFromModel2(url, caminho_arq_final, pasta.getAbsolutePath());
-                        respostaPython = result.toString(); // Assumindo que retorna o caminho final
-
-                        // Se o retorno do Python for o caminho da música baixada
-                        caminhoMusicaLocal = caminho_arq_final;
-
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        final String errorMessage = e.getMessage();
-                        runOnUiThread(() -> Toast.makeText(MusicActivity.this, "Erro no processamento Python: " + errorMessage, Toast.LENGTH_LONG).show());
-                    } finally {
-                        // Sempre volte para a UI Thread para atualizar a interface com o resultado
-                        String finalCaminhoMusicaLocal = caminhoMusicaLocal;
-                        runOnUiThread(() -> {
-                            // (Opcional) Esconder o indicador de carregamento
-                            // ProgressBar loadingSpinner = findViewById(R.id.progressBarLoading);
-                            // if (loadingSpinner != null) loadingSpinner.setVisibility(View.GONE);
-                            // playPauseBtn.setEnabled(true);
-                            // seekBar.setEnabled(true);
-
-                            // --- CONFIGURAÇÃO DO MEDIA3 PLAYER COM O CAMINHO LOCAL ---
-                            if (finalCaminhoMusicaLocal != null && !finalCaminhoMusicaLocal.isEmpty()) {
-                                File musicaFile = new File(finalCaminhoMusicaLocal);
-
-                                if (musicaFile.exists() && musicaFile.isFile()) {
-                                    Uri mediaUri = Uri.fromFile(musicaFile);
-                                    androidx.media3.common.MediaItem mediaItem = androidx.media3.common.MediaItem.fromUri(mediaUri);
-                                    mediaController.setMediaItem(mediaItem);
-                                    mediaController.prepare();
-                                    mediaController.play();
-                                } else {
-                                    Toast.makeText(MusicActivity.this, "Erro: Arquivo de música não encontrado após download ou inválido.", Toast.LENGTH_LONG).show();
-                                }
-                            } else {
-                                Toast.makeText(MusicActivity.this, "Erro: O processamento da música falhou ou retornou caminho vazio.", Toast.LENGTH_LONG).show();
-                            }
-                            // O restante das atualizações de UI que dependem do mediaController
-                            atualizarBotaoPlayPause();
-                        });
-                    }
-                });
-                // <<< FIM: Executar a lógica do ChaquoPy em uma Thread de background >>>
-
-
-                // Estes listeners e a inicialização da seekbar podem ficar aqui fora
-                // pois eles são para o mediaController, não para a lógica do python.
-                // O mediaController só vai começar a tocar quando o MediaItem for setado
-                // na runOnUiThread() acima.
+                // Os listeners devem ser adicionados sempre
                 mediaController.addListener(new Player.Listener() {
-                    @Override
-                    public void onIsPlayingChanged(boolean isPlaying) {
-                        atualizarBotaoPlayPause();
-                    }
-
-                    @Override
-                    public void onPlaybackStateChanged(int playbackState) {
-                        atualizarBotaoPlayPause();
-                        // Lógica de ProgressBar pode ir aqui também para buffering
-                    }
-                    @Override
-                    public void onPlayerError(androidx.media3.common.PlaybackException error) {
-                        Player.Listener.super.onPlayerError(error);
-                        runOnUiThread(() -> {
-                            Toast.makeText(MusicActivity.this, "Erro de reprodução: " + error.getMessage(), Toast.LENGTH_LONG).show();
-                            error.printStackTrace();
-                        });
-                    }
+                    // ... (seus callbacks de isPlayingChanged, onPlaybackStateChanged, onPlayerError) ...
                 });
 
-                iniciarSeekBar();
+                iniciarSeekBar(); // Inicia a atualização da SeekBar
 
             } catch (Exception e) {
                 e.printStackTrace();
-                Toast.makeText(MusicActivity.this, "Erro ao conectar ao serviço de mídia: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Erro ao conectar ao serviço de mídia: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         }, MoreExecutors.directExecutor());
-    }
 
+    }
 
     @Override
     protected void onStop() {
         super.onStop();
         pararSeekBar();
-        if (mediaController != null) {
-            mediaController.release();
-            mediaController = null;
-        }
+        // Não chame mediaController.release() se o serviço deve continuar tocando
+        // mediaController.release(); // Remova esta linha se você quer que o serviço continue tocando
+        // mediaController = null;
     }
 
     // Atualizar ícone do botão play/pause
@@ -283,4 +206,38 @@ public class MusicActivity extends AppCompatActivity {
             handler.postDelayed(this, 500);
         }
     };
+
+    // Receiver para receber o caminho da música e da imagem do serviço
+    private class MyDownloadCompleteReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if ("ACTION_DOWNLOAD_COMPLETE".equals(action)) {
+                String audioPath = intent.getStringExtra("audioPath");
+                String imagePath = intent.getStringExtra("imagePath");
+
+                runOnUiThread(() -> {
+                    // (Opcional) Esconder o indicador de carregamento
+                    if (imagePath != null && !imagePath.isEmpty()) {
+                        Bitmap bitmap = BitmapFactory.decodeFile(imagePath);
+                        background.setImageBitmap(bitmap);
+                    } else {
+                        // Lidar com o caso de não ter imagem ou caminho inválido
+                        background.setImageResource(R.drawable.default_music_background); // Exemplo
+                    }
+                    // O MediaItem já deve ter sido setado e tocando pelo serviço
+                    // Você não precisa mais setar o MediaItem aqui. A UI apenas se conecta ao controller.
+                    atualizarBotaoPlayPause();
+                    Toast.makeText(MusicActivity.this, "Download e reprodução iniciados!", Toast.LENGTH_SHORT).show();
+                });
+            } else if ("ACTION_DOWNLOAD_ERROR".equals(action)) {
+                String errorMessage = intent.getStringExtra("errorMessage");
+                runOnUiThread(() -> {
+                    // (Opcional) Esconder o indicador de carregamento
+                    Toast.makeText(MusicActivity.this, "Erro no download: " + errorMessage, Toast.LENGTH_LONG).show();
+                });
+            }
+        }
+    }
+
 }
