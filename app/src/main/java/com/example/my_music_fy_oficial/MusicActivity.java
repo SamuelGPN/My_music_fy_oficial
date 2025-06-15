@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
@@ -38,6 +39,9 @@ import java.io.File;
 
 public class MusicActivity extends AppCompatActivity {
     private MediaController mediaController;
+
+    // Declare o playerListener como um campo da classe
+    private Player.Listener playerListener; // Adicione este campo
 
     private ImageButton playPauseBtn;
     private SeekBar seekBar;
@@ -149,16 +153,56 @@ public class MusicActivity extends AppCompatActivity {
                     // Ex: mediaController.sendCustomCommand(new SessionCommand("GET_THUMBNAIL"), null);
                 }
 
-                // Os listeners devem ser adicionados sempre
-                mediaController.addListener(new Player.Listener() {
-                    // ... (seus callbacks de isPlayingChanged, onPlaybackStateChanged, onPlayerError) ...
-                });
+                // Crie e adicione o listener
+                //serve para notificar a sua MusicActivity sempre que o estado de reprodução da música muda no PlaybackService
+                //Ou seja ele atualiza essa activity conforme a reprodução muda no playbackService
+                playerListener = new Player.Listener() {
+                    @Override
+                    public void onIsPlayingChanged(boolean isPlaying) {
+                        // ESTE É O MÉTODO QUE DEVE SER CHAMADO PARA ATUALIZAR O BOTÃO
+                        Log.d("MusicActivity", "Player.Listener.onIsPlayingChanged: isPlaying=" + isPlaying);
+                        atualizarBotaoPlayPause();
+                    }
+
+                    @Override
+                    public void onPlaybackStateChanged(int playbackState) {
+                        Log.d("MusicActivity", "Player.Listener.onPlaybackStateChanged: playbackState=" + playbackState);
+                        atualizarBotaoPlayPause(); // Chame para garantir atualização de estado geral
+                        // Lógica para ProgressBar de buffering aqui
+                    }
+
+                    @Override
+                    public void onPlayerError(androidx.media3.common.PlaybackException error) {
+                        Player.Listener.super.onPlayerError(error);
+                        Log.e("MusicActivity", "Player.Listener.onPlayerError: " + error.getMessage());
+                        runOnUiThread(() -> Toast.makeText(MusicActivity.this, "Erro de reprodução: " + error.getMessage(), Toast.LENGTH_LONG).show());
+                    }
+                    // Adicione outras sobrescritas se necessário, ex: onMediaItemTransition
+                };
+                mediaController.addListener(playerListener); // Adicione o listener
+
+                // Chame atualizarBotaoPlayPause() imediatamente após o setup do listener
+                // para garantir que o estado inicial do botão seja correto.
+                atualizarBotaoPlayPause();
+                Log.d("MusicActivity", "Chamada inicial a atualizarBotaoPlayPause() após listener.");
+
+
+                // *** LÓGICA DE INÍCIO DO DOWNLOAD NO SERVIÇO ***
+                if (!Objects.equals(url, url_ant)) {
+                    // ... (seu código para startService) ...
+                    Log.d("MusicActivity", "URL diferente da anterior. Enviando para serviço: " + url);
+                } else {
+                    Log.d("MusicActivity", "URL igual à anterior. Sem necessidade de novo download.");
+                    // Se a música já está sendo tocada pelo serviço, o playerListener
+                    // já deve ter atualizado o botão com o estado inicial.
+                }
 
                 iniciarSeekBar(); // Inicia a atualização da SeekBar
 
             } catch (Exception e) {
                 e.printStackTrace();
                 Toast.makeText(this, "Erro ao conectar ao serviço de mídia: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Log.e("MusicActivity", "Erro ao conectar MediaController: " + e.getMessage(), e);
             }
         }, MoreExecutors.directExecutor());
 
@@ -176,10 +220,23 @@ public class MusicActivity extends AppCompatActivity {
     // Atualizar ícone do botão play/pause
     private void atualizarBotaoPlayPause() {
         runOnUiThread(() -> {
-            if (mediaController.isPlaying()) {
-                playPauseBtn.setImageResource(R.drawable.pause_icon);
+            Log.d("MusicActivity", "atualizarBotaoPlayPause() chamado."); // LOG AQUI
+
+            if (mediaController != null) {
+                boolean isPlaying = mediaController.isPlaying();
+                Log.d("MusicActivity", "mediaController.isPlaying() retorna: " + isPlaying); // LOG AQUI
+
+                if (isPlaying) {
+                    playPauseBtn.setImageResource(R.drawable.pause_icon);
+                    Log.d("MusicActivity", "Botão Play/Pause: Definido para PAUSE_ICON."); // LOG AQUI
+                } else {
+                    playPauseBtn.setImageResource(R.drawable.play_icon);
+                    Log.d("MusicActivity", "Botão Play/Pause: Definido para PLAY_ICON."); // LOG AQUI
+                }
             } else {
-                playPauseBtn.setImageResource(R.drawable.play_icon);
+                Log.w("MusicActivity", "atualizarBotaoPlayPause: mediaController é nulo. Não é possível atualizar o botão."); // LOG AQUI
+                // Opcional: Definir um ícone padrão se o controller for nulo
+                // playPauseBtn.setImageResource(R.drawable.play_icon);
             }
         });
     }
@@ -223,7 +280,7 @@ public class MusicActivity extends AppCompatActivity {
                         background.setImageBitmap(bitmap);
                     } else {
                         // Lidar com o caso de não ter imagem ou caminho inválido
-                        background.setImageResource(R.drawable.default_music_background); // Exemplo
+                        background.setImageResource(R.drawable.music_backgrounds); // Colocar um background para quando a música não ter background
                     }
                     // O MediaItem já deve ter sido setado e tocando pelo serviço
                     // Você não precisa mais setar o MediaItem aqui. A UI apenas se conecta ao controller.

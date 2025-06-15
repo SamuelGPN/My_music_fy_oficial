@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -23,6 +24,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.chaquo.python.PyObject; // Importe o ChaquoPy
 import com.chaquo.python.Python; // Importe o ChaquoPy
+
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log; // Para logs
 
 public class PlaybackService extends MediaSessionService {
@@ -31,10 +35,14 @@ public class PlaybackService extends MediaSessionService {
     @Nullable private MediaSession mediaSession;
     private ExecutorService downloadExecutor; // Adicione este campo
 
+    private Handler mainThreadHandler; // Adicione este campo
+
     @OptIn(markerClass = UnstableApi.class)
     @Override
     public void onCreate() {
         super.onCreate();
+        mainThreadHandler = new Handler(Looper.getMainLooper()); // Inicialize o Handler
+
         // Inicialize o ExecutorService aqui
         downloadExecutor = Executors.newSingleThreadExecutor(); // Para um download por vez
         // ou Executors.newFixedThreadPool(NUM_THREADS) para múltiplos downloads
@@ -101,27 +109,20 @@ public class PlaybackService extends MediaSessionService {
                         Uri mediaUri = Uri.fromFile(musicaFile);
                         androidx.media3.common.MediaItem mediaItem = androidx.media3.common.MediaItem.fromUri(mediaUri);
 
-                        // Atualize o player na thread principal do serviço (se necessário, o ExoPlayer geralmente é thread-safe para setMediaItem/prepare/play)
-                        // ou garanta que o player está sendo usado na thread correta.
-                        // Para Media3, setMediaItem e play podem ser chamados de threads de fundo.
-                        Player player = mediaSession.getPlayer();
-                        player.setMediaItem(mediaItem);
-                        player.prepare();
-                        player.play();
+                        // *** Execute o código do ExoPlayer na thread principal ***
+                        mainThreadHandler.post(() -> {
+                            Player player = mediaSession.getPlayer();
+                            player.setMediaItem(mediaItem);
+                            player.prepare();
+                            player.play();
+                        });
 
-                        // Você pode enviar um broadcast local ou usar um liveData para notificar a Activity da imagem
-                        // ou apenas retornar o caminho da imagem e a Activity busca/exibe.
-                        Log.d("PlaybackService", "Música carregada no player: " + caminhoMusicaLocal);
-
-                        // Envie a imagem de volta para a Activity (ex: via um BroadcastReceiver local)
-                        // ou use um LiveData/ViewModel compartilhado
+                        // *** MUDANÇA CRÍTICA: Envie o backgroundCaminho no Broadcast ***
                         Intent broadcastIntent = new Intent("ACTION_DOWNLOAD_COMPLETE");
                         broadcastIntent.putExtra("audioPath", caminhoMusicaLocal);
-                        broadcastIntent.putExtra("imagePath", backgroundCaminho);
-                        // Se você usa uma URL para a imagem, pode enviar a URL também
-                        // broadcastIntent.putExtra("imageUrl", imageUrl);
-                        sendBroadcast(broadcastIntent);
-
+                        broadcastIntent.putExtra("imagePath", backgroundCaminho); // <-- Adicione esta linha
+                        LocalBroadcastManager.getInstance(PlaybackService.this).sendBroadcast(broadcastIntent);
+                        Log.d("PlaybackService", "Broadcast ACTION_DOWNLOAD_COMPLETE enviado com audioPath: " + caminhoMusicaLocal + ", imagePath: " + backgroundCaminho);
                     } else {
                         Log.e("PlaybackService", "Erro: Arquivo de música não encontrado ou inválido após download.");
                     }
