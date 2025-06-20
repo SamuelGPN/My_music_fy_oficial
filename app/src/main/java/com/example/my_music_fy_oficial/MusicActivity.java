@@ -1,6 +1,8 @@
 package com.example.my_music_fy_oficial;
 
 
+import static android.content.Intent.getIntent;
+
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -23,6 +25,8 @@ import android.widget.Toast;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionCommand;
+import androidx.media3.session.SessionResult;
 import androidx.media3.session.SessionToken;
 import androidx.media3.common.Player;
 
@@ -151,6 +155,49 @@ public class MusicActivity extends AppCompatActivity {
                     atualizarBotaoPlayPause();
                     // Aqui você também pode pedir ao serviço a thumbnail da música atual para carregar na UI
                     // Ex: mediaController.sendCustomCommand(new SessionCommand("GET_THUMBNAIL"), null);
+
+                    // Solicite a thumbnail ao serviço via SessionCommand
+                    mediaController.sendCustomCommand(
+                            new SessionCommand("ACTION_GET_CURRENT_THUMBNAIL", Bundle.EMPTY),
+                            Bundle.EMPTY // Não precisa de args adicionais para esta solicitação
+                    ).addListener(() -> {
+                        try {
+                            SessionResult result = mediaController.sendCustomCommand(
+                                    new SessionCommand("ACTION_GET_CURRENT_THUMBNAIL", Bundle.EMPTY),
+                                    Bundle.EMPTY
+                            ).get(); // Await the result
+
+                            if (result.resultCode == SessionResult.RESULT_SUCCESS) {
+                                Bundle data = result.extras;
+                                if (data.containsKey("thumbnailPath")) {
+                                    String imagePath = data.getString("thumbnailPath");
+                                    Log.d("MusicActivity", "Thumbnail recebida via custom command: " + imagePath);
+                                    runOnUiThread(() -> {
+                                        if (imagePath != null && !imagePath.isEmpty()) {
+                                            Bitmap bitmap = BitmapFactory.decodeFile(imagePath);
+                                            if (bitmap != null) {
+                                                background.setImageBitmap(bitmap);
+                                                Log.d("MusicActivity", "Background atualizado com imagem de: " + imagePath);
+                                            } else {
+                                                Log.e("MusicActivity", "BitmapFactory.decodeFile retornou nulo para thumbnail de custom command: " + imagePath);
+                                                background.setImageResource(R.drawable.music_backgrounds);
+                                            }
+                                        } else {
+                                            Log.w("MusicActivity", "Caminho da thumbnail vazio ou nulo de custom command. Definindo background padrão.");
+                                            background.setImageResource(R.drawable.music_backgrounds);
+                                        }
+                                    });
+                                } else {
+                                    Log.w("MusicActivity", "Resultado do custom command GET_CURRENT_THUMBNAIL não contém thumbnailPath.");
+                                }
+                            } else {
+                                Log.e("MusicActivity", "Erro ao obter thumbnail via custom command: " + result.resultCode);
+                            }
+                        } catch (Exception e) {
+                            Log.e("MusicActivity", "Exceção ao processar resultado do custom command GET_CURRENT_THUMBNAIL: " + e.getMessage(), e);
+                        }
+                    }, MoreExecutors.directExecutor()); // Use um executor para lidar com o resultado
+
                 }
 
                 // Crie e adicione o listener
@@ -269,6 +316,7 @@ public class MusicActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+
             if ("ACTION_DOWNLOAD_COMPLETE".equals(action)) {
                 String audioPath = intent.getStringExtra("audioPath");
                 String imagePath = intent.getStringExtra("imagePath");

@@ -32,9 +32,13 @@ import android.util.Log; // Para logs
 public class PlaybackService extends MediaSessionService {
     private static final SessionCommand CUSTOM_COMMAND_FAVORITES =
             new SessionCommand("ACTION_FAVORITES", Bundle.EMPTY);
+
+    private static final SessionCommand CUSTOM_COMMAND_GET_CURRENT_THUMBNAIL =
+            new SessionCommand("ACTION_GET_CURRENT_THUMBNAIL", Bundle.EMPTY);
+
     @Nullable private MediaSession mediaSession;
     private ExecutorService downloadExecutor; // Adicione este campo
-
+    private String currentPlayingThumbnailPath; // Campo para armazenar o caminho da thumbnail
     private Handler mainThreadHandler; // Adicione este campo
 
     @OptIn(markerClass = UnstableApi.class)
@@ -75,6 +79,8 @@ public class PlaybackService extends MediaSessionService {
         }
     }
 
+
+
     // Método para iniciar o download e reprodução no serviço
     public void startMusicDownloadAndPlay(String videoUrl) {
         downloadExecutor.execute(() -> {
@@ -102,6 +108,7 @@ public class PlaybackService extends MediaSessionService {
                 PyObject result = PythonModelHolder.callModeloFromModel2(videoUrl, pastaDeDestino.getAbsolutePath());
                 caminhoMusicaLocal = result.asList().get(0).toString();
                 backgroundCaminho = result.asList().get(1).toString();
+                this.currentPlayingThumbnailPath = backgroundCaminho;
 
                 if (caminhoMusicaLocal != null && !caminhoMusicaLocal.isEmpty()) {
                     File musicaFile = new File(caminhoMusicaLocal);
@@ -121,7 +128,7 @@ public class PlaybackService extends MediaSessionService {
                         Intent broadcastIntent = new Intent("ACTION_DOWNLOAD_COMPLETE");
                         broadcastIntent.putExtra("audioPath", caminhoMusicaLocal);
                         broadcastIntent.putExtra("imagePath", backgroundCaminho); // <-- Adicione esta linha
-                        LocalBroadcastManager.getInstance(PlaybackService.this).sendBroadcast(broadcastIntent);
+                        LocalBroadcastManager.getInstance(PlaybackService.this).sendBroadcast(broadcastIntent);//Ira executar a classe  MyDownloadCompleteReceiver do MusicActivity
                         Log.d("PlaybackService", "Broadcast ACTION_DOWNLOAD_COMPLETE enviado com audioPath: " + caminhoMusicaLocal + ", imagePath: " + backgroundCaminho);
                     } else {
                         Log.e("PlaybackService", "Erro: Arquivo de música não encontrado ou inválido após download.");
@@ -139,7 +146,6 @@ public class PlaybackService extends MediaSessionService {
             }
         });
     }
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && "ACTION_START_DOWNLOAD_AND_PLAY".equals(intent.getAction())) {
@@ -156,9 +162,7 @@ public class PlaybackService extends MediaSessionService {
         // This example always accepts the connection request
         return mediaSession;
     }
-    private static class MyCallback implements MediaSession.Callback {
-
-
+    private class MyCallback implements MediaSession.Callback {
         private final Player player;
 
         @OptIn(markerClass = UnstableApi.class)
@@ -170,6 +174,8 @@ public class PlaybackService extends MediaSessionService {
                     .setAvailableSessionCommands(
                             MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                                     .add(CUSTOM_COMMAND_FAVORITES)
+                                    // >>> AQUI ESTÁ A CORREÇÃO: ADICIONE AQUI O SEU COMANDO DA THUMBNAIL <<<
+                                    .add(CUSTOM_COMMAND_GET_CURRENT_THUMBNAIL)
                                     .build())
                     .build();
         }
@@ -202,13 +208,34 @@ public class PlaybackService extends MediaSessionService {
                 // Do custom logic here
                 saveToFavorites(session.getPlayer().getCurrentMediaItem());
                 return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+            }else if (customCommand.customAction.equals(CUSTOM_COMMAND_GET_CURRENT_THUMBNAIL.customAction)) {
+                // Lógica para retornar o caminho da thumbnail atual
+                String currentThumbnailPath = getCurrentPlayingThumbnailPath(); // Implemente este método
+                Log.d("PlaybackService", "Comando GET_CURRENT_THUMBNAIL recebido. Caminho: " + currentThumbnailPath);
+
+                Bundle resultBundle = new Bundle();
+                resultBundle.putString("thumbnailPath", currentThumbnailPath);
+                return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS, resultBundle));
             }
+
             return MediaSession.Callback.super.onCustomCommand(
                     session, controller, customCommand, args);
         }
 
         private void saveToFavorites(MediaItem currentMediaItem) {
         }
+
+        // Você precisará de um método no PlaybackService para obter o caminho da thumbnail atual
+        // Como você já armazena backgroundCaminho após o download, é só retornar.
+        // Faça este método acessível, talvez como um método público do PlaybackService,
+        // e chame-o de dentro de MyCallback.
+        private String getCurrentPlayingThumbnailPath() {
+            // Supondo que você tenha um campo na classe PlaybackService para armazenar isso
+            // Ex: `private String currentPlayingThumbnailPath;`
+            // E você o atualiza em startMusicDownloadAndPlay(String videoUrl)
+            return PlaybackService.this.currentPlayingThumbnailPath; // Exemplo: acesso ao campo do serviço
+        }
+
     }
 
 
